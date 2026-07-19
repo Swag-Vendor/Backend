@@ -1,0 +1,64 @@
+datasource db {
+  provider = "sqlite"
+  //url      = env("DATABASE_URL") removed in prisma 7
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Role {
+  id    Int    @id @default(autoincrement())
+  name  String @unique  // "organizer", "director", "exec"
+  users User[]
+}
+
+model User {
+  id           Int       @id @default(autoincrement())
+  email        String    @unique
+  passwordHash String
+  name         String
+  roleId       Int
+  role         Role      @relation(fields: [roleId], references: [id])
+  requests     Request[]
+  createdAt    DateTime  @default(now())
+}
+
+model SwagItem {
+  id          Int     @id @default(autoincrement())
+  name        String
+  description String?
+  quantity    Int
+  quotes      Quote[]
+  requestId   Int?
+  request     Request? @relation(fields: [requestId], references: [id])
+  createdAt   DateTime @default(now())
+}
+
+model Quote {
+  id           Int      @id @default(autoincrement())
+  vendorName   String
+  unitPrice    Float
+  fulfillment  String?
+  swagItemId   Int
+  swagItem     SwagItem @relation(fields: [swagItemId], references: [id])
+  isSelected   Boolean  @default(false)
+  createdAt    DateTime @default(now())
+}
+
+model Request {
+  id          Int        @id @default(autoincrement())
+  userId      Int
+  user        User       @relation(fields: [userId], references: [id])
+  status      String     @default("pending")  // pending, approved, rejected
+  totalCost   Float      @default(0)
+  items       SwagItem[]
+  createdAt   DateTime   @default(now())
+  approvedAt  DateTime?
+}
+
+model MasterFund {
+  id        Int      @id @default(autoincrement())
+  balance   Float
+  updatedAt DateTime @updatedAt
+}
