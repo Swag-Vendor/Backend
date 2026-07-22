@@ -7,7 +7,10 @@
     "dev": "tsx watch src/index.ts",
     "start": "tsx src/index.ts",
     "db:push": "prisma db push",
-    "db:generate": "prisma generate"
+      "db:generate": "prisma generate",
+      "db:push": "prisma db push",
+      "db:generate": "prisma generate",
+      "db:seed": "tsx prisma/seed.ts"
   },
   "devDependencies": {
     "@types/bun": "latest",
