@@ -28,6 +28,7 @@ model SwagItem {
   id          Int     @id @default(autoincrement())
   name        String
   description String?
+  category    String?
   quantity    Int
   quotes      Quote[]
   requestId   Int?
@@ -61,4 +62,13 @@ model MasterFund {
   id        Int      @id @default(autoincrement())
   balance   Float
   updatedAt DateTime @updatedAt
+}
+
+// Log of every manual change to the master fund total what /master-fund/ledger reads from
+// for the "deposit" side of the ledger
+model FundAdjustment {
+  id        Int      @id @default(autoincrement())
+  amount    Float // positive = deposit/top-up, negative = manual reduction
+  note      String
+  createdAt DateTime @default(now())
 }

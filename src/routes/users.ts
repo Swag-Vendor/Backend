@@ -5,20 +5,22 @@
 */
 
 import { Router } from 'express'
+import bcrypt from 'bcrypt'
 import { prisma } from '../db.ts'
 
 const router = Router()
 
 router.post('/', async (req, res) => {
+    const passwordHash = await bcrypt.hash(req.body.password, 10)
     const user = await prisma.user.create({
         data: {
             email: req.body.email,
-            passwordHash: req.body.passwordHash,
+            passwordHash,
             name: req.body.name,
             roleId: req.body.roleId,
         },
     })
-    res.json(user)
+    res.json({ id: user.id, email: user.email })
 })
 
 router.get('/:id', async (req, res) => {
