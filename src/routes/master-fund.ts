@@ -9,8 +9,7 @@ router.get('/', async (_req, res) => {
     res.json(fund)
 })
 
-// Adjusts the fund total (top-up or manual correction) and logs it so it
-// shows up on the ledger. amount is a delta, not an absolute value.
+// Adjusts the fund total and logs it so it and it shows up on the ledger
 router.patch('/', requireAuth, requireRole('director'), async (req, res) => {
     const amount = Number(req.body.amount)
     const note = req.body.note ?? 'Manual adjustment'
@@ -26,9 +25,7 @@ router.patch('/', requireAuth, requireRole('director'), async (req, res) => {
     res.json(updatedFund)
 })
 
-// fund.balance is the fixed total allocation; approved/pending are summed
-// from Request rather than tracked as separate counters, so this always
-// reflects the current state instead of drifting out of sync with it.
+// fund.balance is the fixed total allocation; approved/pending are summed from Request rather than tracked as separate counters
 async function computeSummary() {
     const fund = await prisma.masterFund.findFirst()
     const fundTotal = fund?.balance ?? 0
@@ -49,9 +46,6 @@ router.get('/summary', async (_req, res) => {
     res.json(await computeSummary())
 })
 
-// Approved spend grouped by SwagItem.category. Cost per item comes from
-// whichever quote on it has isSelected = true (see PATCH /quotes/:id/select);
-// items with no selected quote contribute $0 since there's no price to use.
 router.get('/categories', async (_req, res) => {
     const approvedRequests = await prisma.request.findMany({
         where: { status: 'approved' },
@@ -72,9 +66,7 @@ router.get('/categories', async (_req, res) => {
     res.json(categories)
 })
 
-// Chronological ledger: FundAdjustment rows are the deposit/top-up side,
-// Request rows (approved + pending) are the expense side. Running balance
-// is computed by walking both lists merged by date, oldest first.
+// chronological
 router.get('/ledger', async (_req, res) => {
     const [adjustments, requests] = await Promise.all([
         prisma.fundAdjustment.findMany({ orderBy: { createdAt: 'asc' } }),
