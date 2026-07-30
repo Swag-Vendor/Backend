@@ -41,13 +41,17 @@ router.post('/:id/approve', requireAuth, requireRole('director'), async (req, re
         if (request.status !== 'pending') throw new Error('Request not pending')
 
         const fund = await tx.masterFund.findFirst()
-        if (!fund) throw new Error('DEBUG: Master fund not initialized')
-        if (fund.balance < request.totalCost) throw new Error('Insufficient funds')
+        if (!fund) throw new Error('Master fund not initialized')
 
-        await tx.masterFund.update({
-            where: { id: fund.id },
-            data: { balance: fund.balance - request.totalCost },
-        })
+        // fund.balance is the fixed total allocation; remaining is derived from
+        // approved + still-pending requests rather than decremented in place,
+        // so it stays consistent with GET /master-fund/summary.
+        const [approvedAgg, pendingAgg] = await Promise.all([
+            tx.request.aggregate({ where: { status: 'approved' }, _sum: { totalCost: true } }),
+            tx.request.aggregate({ where: { status: 'pending' }, _sum: { totalCost: true } }),
+        ])
+        const remaining = fund.balance - (approvedAgg._sum.totalCost ?? 0) - (pendingAgg._sum.totalCost ?? 0)
+        if (remaining < 0) throw new Error('Insufficient funds')
 
         return tx.request.update({
             where: { id },
