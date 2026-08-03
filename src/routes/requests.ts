@@ -18,6 +18,71 @@ router.post('/', async (req, res) => {
     res.json(request)
 })
 
+type FullItemInput = {
+    name: string
+    description?: string
+    category?: string
+    quantity: number
+    vendorName: string
+    unitPrice: number
+    fulfillment?: string
+}
+
+router.post('/full', async (req, res) => {
+    const userId: number = req.body.userId
+    const items:FullItemInput[] = req.body.items ?? []
+
+    if (!userId || items.length === 0) {
+        return res.status(400).json({ error: 'user id required'})
+    }
+
+    for (const it of items) {
+        if (!it.name || !it. vendorName || it.quantity == null || ite.unitPrice == null) {
+            return res.status(400).json({ error: 'each item needs name, vendorName, quantity, unitPrice '})
+        }
+    }
+
+    const totalCost = items.reduce((s,it) => s + it.unitPrice * it.quantity, 0)
+
+    const request = await prisma.$transaction(async (tx) => {
+        const created = await tx.request.create({
+            data: { userId, totalCost },
+        })
+
+        /*
+          There is probally a better way of doing this
+          however this works for right now
+        */
+
+        for (const it of items) {
+            await tx.swagItem.create({
+                data: {
+                    name: it.name,
+                    description: it.description,
+                    category: it.category,
+                    quantity: it.quantity,
+                    requestId: created.id,
+                    quotes: {
+                        create: {
+                            vendorName: it.vendorName,
+                            unitPrice: it.unitPrice,
+                            fulfillment: it.fulfillment,
+                            isSelected: true,
+                        },
+                    },
+                },
+            })
+        }
+
+        return tx.request.findUnique({
+            where: { id: created.id },
+            include: { items: { include: { quotes: true } }, user: true },
+        })
+    })
+
+    res.json(request)
+})
+
 router.get('/', async (_req, res) => {
     const requests = await prisma.request.findMany({
         where: { status: 'pending' },
@@ -27,12 +92,11 @@ router.get('/', async (_req, res) => {
 })
 
 
-
 router.post('/:id/approve', requireAuth, requireRole('director'), async (req, res) => {
     const id = Number(req.params.id)
 
     /*
-     * All wrapped in prisma.$transaction so if any step fails, nothing gets committed 
+     * All wrapped in prisma.$transaction so if any step fails, nothing gets committed
      */
 
     const result = await prisma.$transaction(async (tx) => {
