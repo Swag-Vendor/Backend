@@ -9,6 +9,14 @@ import { prisma } from '../db.ts'
 
 const router = Router()
 
+router.get('/', async (_req, res) => {
+    const quotes = await prisma.quote.findMany({
+        include: { swagItem: true },
+        orderBy: { createdAt: 'desc' },
+    })
+    res.json(quotes)
+})
+
 router.post('/', async (req, res) => {
     const quote = await prisma.quote.create({
        data: {
@@ -37,6 +45,15 @@ router.patch('/:id/select', async (req, res) => {
         prisma.quote.update({ where: { id }, data: { isSelected: true } }),
     ])
     res.json(updated)
+})
+
+router.delete('/:id', async (req, res) => {
+    const id = Number(req.params.id)
+    const quote = await prisma.quote.findUnique({ where: { id } })
+    if (!quote) return res.status(404).json({ error: 'Quote not found' })
+
+    await prisma.quote.delete({ where: { id } })
+    res.status(204).send()
 })
 
 export default router
