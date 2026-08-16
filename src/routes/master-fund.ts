@@ -4,13 +4,15 @@ import { requireAuth, requireRole } from '../middleware/auth.ts'
 
 const router = Router()
 
+router.use(requireAuth)
+
 router.get('/', async (_req, res) => {
     const fund = await prisma.masterFund.findFirst()
     res.json(fund)
 })
 
 // Adjusts the fund total and logs it so it and it shows up on the ledger
-router.patch('/', requireAuth, requireRole('director'), async (req, res) => {
+router.patch('/', requireRole('director'), async (req, res) => {
     const amount = Number(req.body.amount)
     const note = req.body.note ?? 'Manual adjustment'
     if (!Number.isFinite(amount)) return res.status(400).json({ error: 'amount must be a number' })

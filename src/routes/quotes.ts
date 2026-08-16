@@ -6,8 +6,11 @@
 
 import { Router } from 'express'
 import { prisma } from '../db.ts'
+import { requireAuth } from '../middleware/auth.ts'
 
 const router = Router()
+
+router.use(requireAuth)
 
 router.get('/', async (_req, res) => {
     const quotes = await prisma.quote.findMany({

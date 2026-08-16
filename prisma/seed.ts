@@ -1,7 +1,7 @@
 import { prisma } from '../src/db.ts'
 
 // Real allocation gets set later via PATCH /master-fund (director role)
-const STARTING_BALANCE = 0
+const STARTING_BALANCE = 25000
 
 async function main() {
     const roleNames = ['organizer', 'director', 'exec']
