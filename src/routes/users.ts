@@ -7,10 +7,13 @@
 import { Router } from 'express'
 import bcrypt from 'bcrypt'
 import { prisma } from '../db.ts'
+import { requireAuth, requireRole } from '../middleware/auth.ts'
 
 const router = Router()
 
-router.post('/', async (req, res) => {
+// Director-only: this is how staff get accounts with an elevated role (director/exec).
+// Public self-registration lives at POST /auth/signup and always creates 'organizer' accounts.
+router.post('/', requireAuth, requireRole('director'), async (req, res) => {
     const passwordHash = await bcrypt.hash(req.body.password, 10)
     const user = await prisma.user.create({
         data: {
@@ -23,10 +26,11 @@ router.post('/', async (req, res) => {
     res.json({ id: user.id, email: user.email })
 })
 
-router.get('/:id', async (req, res) => {
+router.get('/:id', requireAuth, async (req, res) => {
     const user = await prisma.user.findUnique({
         where: { id: Number(req.params.id) },
         include: { role: true, requests: true },
+        omit: { passwordHash: true },
     })
     res.json(user)
 })

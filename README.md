@@ -47,6 +47,7 @@
 | POST | `/requests` | `{ userId, totalCost, itemIds: number[] }` | — | Creates with `status: "pending"`. |
 | GET | `/requests` | — | — | Returns only `status: "pending"` requests. |
 | POST | `/requests/:id/approve` | — | director | |
+| POST | `/requests/:id/reject` | — | director | |
 
 - test-director@technica.org / TestPass123!
 

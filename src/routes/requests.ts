@@ -4,6 +4,8 @@ import { requireAuth, requireRole } from '../middleware/auth.ts'
 
 const router = Router()
 
+router.use(requireAuth)
+
 router.post('/', async (req, res) => {
     const request = await prisma.request.create({
         data: {
@@ -37,7 +39,7 @@ router.post('/full', async (req, res) => {
     }
 
     for (const it of items) {
-        if (!it.name || !it. vendorName || it.quantity == null || ite.unitPrice == null) {
+        if (!it.name || !it.vendorName || it.quantity == null || it.unitPrice == null) {
             return res.status(400).json({ error: 'each item needs name, vendorName, quantity, unitPrice '})
         }
     }
@@ -86,44 +88,71 @@ router.post('/full', async (req, res) => {
 router.get('/', async (_req, res) => {
     const requests = await prisma.request.findMany({
         where: { status: 'pending' },
-        include: { items: true, user: true },
+        include: { items: true, user: { omit: { passwordHash: true } } },
     })
     res.json(requests)
 })
 
 
-router.post('/:id/approve', requireAuth, requireRole('director'), async (req, res) => {
+router.post('/:id/approve', requireRole('director'), async (req, res) => {
     const id = Number(req.params.id)
 
     /*
      * All wrapped in prisma.$transaction so if any step fails, nothing gets committed
      */
 
-    const result = await prisma.$transaction(async (tx) => {
-        const request = await tx.request.findUnique({ where: { id } })
+    try {
+        const result = await prisma.$transaction(async (tx) => {
+            const request = await tx.request.findUnique({ where: { id } })
+            if (!request) throw new Error('Request not found')
+            if (request.status !== 'pending') throw new Error('Request not pending')
+
+            const fund = await tx.masterFund.findFirst()
+            if (!fund) throw new Error('Master fund not initialized')
+
+            // fund.balance is the fixed total allocation; remaining is derived from
+            // approved + still-pending requests rather than decremented in place,
+            // so it stays consistent with GET /master-fund/summary.
+            const [approvedAgg, pendingAgg] = await Promise.all([
+                tx.request.aggregate({ where: { status: 'approved' }, _sum: { totalCost: true } }),
+                tx.request.aggregate({ where: { status: 'pending' }, _sum: { totalCost: true } }),
+            ])
+            const remaining = fund.balance - (approvedAgg._sum.totalCost ?? 0) - (pendingAgg._sum.totalCost ?? 0)
+            if (remaining < 0) throw new Error('Insufficient funds')
+
+            return tx.request.update({
+                where: { id },
+                data: { status: 'approved', approvedAt: new Date() },
+            })
+        })
+
+        res.json(result)
+    } catch (err) {
+        const message = err instanceof Error ? err.message : 'Approval failed'
+        const status = message === 'Request not found' ? 404 : 400
+        res.status(status).json({ error: message })
+    }
+})
+
+router.post('/:id/reject', requireRole('director'), async (req, res) => {
+    const id = Number(req.params.id)
+
+    try {
+        const request = await prisma.request.findUnique({ where: { id } })
         if (!request) throw new Error('Request not found')
         if (request.status !== 'pending') throw new Error('Request not pending')
 
-        const fund = await tx.masterFund.findFirst()
-        if (!fund) throw new Error('Master fund not initialized')
-
-        // fund.balance is the fixed total allocation; remaining is derived from
-        // approved + still-pending requests rather than decremented in place,
-        // so it stays consistent with GET /master-fund/summary.
-        const [approvedAgg, pendingAgg] = await Promise.all([
-            tx.request.aggregate({ where: { status: 'approved' }, _sum: { totalCost: true } }),
-            tx.request.aggregate({ where: { status: 'pending' }, _sum: { totalCost: true } }),
-        ])
-        const remaining = fund.balance - (approvedAgg._sum.totalCost ?? 0) - (pendingAgg._sum.totalCost ?? 0)
-        if (remaining < 0) throw new Error('Insufficient funds')
-
-        return tx.request.update({
+        const result = await prisma.request.update({
             where: { id },
-            data: { status: 'approved', approvedAt: new Date() },
+            data: { status: 'rejected' },
         })
-    })
 
-    res.json(result)
+        res.json(result)
+    } catch (err) {
+        const message = err instanceof Error ? err.message : 'Rejection failed'
+        const status = message === 'Request not found' ? 404 : 400
+        res.status(status).json({ error: message })
+    }
 })
 
 export default router
